@@ -58,7 +58,7 @@ create table TODO (
 	Score INTEGER,
 	IdInsee INTEGER UNSIGNED,
 	Msg VARCHAR(1000)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 EOF
 
 echo
@@ -68,7 +68,7 @@ load data
  local infile 'TODO.lst'
  ignore
  into table TODO
- character set utf8
+ character set utf8mb4
  fields terminated by '|'
  (Nom, Prenom, Sexe, NaissanceD, NaissanceM, NaissanceY, NaissancePlace, DecesD, DecesM, DecesY, DecesPlace, Cle)
  set

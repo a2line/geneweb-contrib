@@ -13,10 +13,11 @@ select concat( Cle, '\n', concat_ws( '|',
 	concat( '°', NaissanceD, '/', NaissanceM, '/', NaissanceY),
 	NaissancePlace,
 	concat( '+', DecesD, '/', DecesM, '/', DecesY),
-	DecesPlace ), '\n', Msg, '\nIdInsee(', IdInsee, ') Score ', Score, '\n')
+	DecesPlace ), '\n', Msg, '\nIdInsee(', IdInsee, ') Score ', Score, ' État ', Etat, '\n')
 from TODO
-where (Etat = 2 and (NaissanceY <> '0000' or DecesY <> '0000'))
-   or (Etat = -2 and score > 2)
+  where (Etat = 2 and (NaissanceY <> '0000' or DecesY <> '0000'))
+     or (Etat = -2 and score > 2)
+     or (Etat = -5 and score = 1 or score = 0)
 order by score desc
 ;
 EOF
