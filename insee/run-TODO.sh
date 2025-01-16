@@ -5,6 +5,9 @@ CFG=.run-TODO.cfg
 
 MYSQL=./mysql.sh
 
+# Optional database name parameter for blacklist filtering
+DB_NAME="$1"
+
 if [ -x "${EXE}" ]
 then
 	if [ ! -f $CFG ]
@@ -35,7 +38,7 @@ then
 fi
 
 echo
-echo "(Re)create table TODO..."
+echo "Creating a TODO table and load records from TODO.lst"
 $MYSQL << EOF
 drop table if exists TODO;
 
@@ -59,11 +62,7 @@ create table TODO (
 	IdInsee INTEGER UNSIGNED,
 	Msg VARCHAR(1000)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-EOF
 
-echo
-echo "Loading TODO..."
-$MYSQL << EOF
 load data
  local infile 'TODO.lst'
  ignore
@@ -76,13 +75,17 @@ load data
 ;
 EOF
 
+echo "… and comparing that list with INSEE table."
 echo
-echo "Comparing TODO -> INSEE..."
-echo BEGIN $(date '+%FT%T')
+SECONDS=0
 $MYSQL -N << EOF
-call processTodo();
+SET @database_name = $([ ! -z "$DB_NAME" ] && echo "'$DB_NAME'" || echo "NULL");
+CALL processTodo();
 EOF
-echo END $(date '+%FT%T')
+DURATION=$SECONDS
+echo
+echo "Processing completed in $(($DURATION / 60)) minutes and $(($DURATION % 60)) seconds"
+echo
 
 $MYSQL -t << EOF
 select
@@ -106,6 +109,8 @@ order by Etat asc
 ;
 EOF
 
-echo
-./rapportFormate.sh > RESULT.txt
-echo "Bilan disponible dans le fichier RESULT.txt"
+if [ ! -z "$DB_NAME" ]; then
+    ./rapportFormate.sh "$DB_NAME" > RESULT.txt
+else
+    ./rapportFormate.sh > RESULT.txt
+fi

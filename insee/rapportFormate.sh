@@ -1,3 +1,3 @@
 #!/bin/bash
 
-./rapport.sh | sed 's/\\n/\n/g'
+./rapport.sh "$1" | sed 's/\\n/\n/g'

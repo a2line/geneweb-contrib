@@ -485,53 +485,111 @@ BEGIN
 	END IF;
 END//
 
-create procedure insee.processTodo()
+CREATE PROCEDURE insee.processTodo()
 BEGIN
-	DECLARE tNom, tPrenom VARCHAR(80);
-	DECLARE tSexe CHAR(1);
-	DECLARE tNaissanceY, tDecesY CHAR(4);
-	DECLARE tNaissanceM, tNaissanceD, tDecesM, tDecesD CHAR(2);
-	DECLARE tNaissancePlace, tDecesPlace VARCHAR(500);
-	DECLARE tCle VARCHAR(100);
-	DECLARE myEtat, myNbMatch, myScore INTEGER;
-	DECLARE tId, bestId INTEGER UNSIGNED;
-	DECLARE myRecord, myMsg VARCHAR(1000);
+    DECLARE tNom, tPrenom VARCHAR(80);
+    DECLARE tSexe CHAR(1);
+    DECLARE tNaissanceY, tDecesY CHAR(4);
+    DECLARE tNaissanceM, tNaissanceD, tDecesM, tDecesD CHAR(2);
+    DECLARE tNaissancePlace, tDecesPlace VARCHAR(500);
+    DECLARE tCle VARCHAR(100);
+    DECLARE myEtat, myNbMatch, myScore INTEGER;
+    DECLARE tId, bestId INTEGER UNSIGNED;
+    DECLARE myRecord, myMsg VARCHAR(1000);
+    DECLARE excluded_count INT DEFAULT 0;
 
-	DECLARE theEnd INT;
-	DECLARE cursorTodo CURSOR FOR
-		select
-		 Id,
-		 Nom, Prenom, Sexe,
-		 NaissanceD, NaissanceM, NaissanceY, NaissancePlace,
-		 DecesD, DecesM, DecesY, DecesPlace,
-		 Cle
-		from TODO
-		where Etat = 0
-	;
-	DECLARE CONTINUE HANDLER FOR NOT FOUND SET theEnd = TRUE;
+    DECLARE theEnd INT;
+    DECLARE cursorTodo CURSOR FOR
+        SELECT
+            Id,
+            Nom, Prenom, Sexe,
+            NaissanceD, NaissanceM, NaissanceY, NaissancePlace,
+            DecesD, DecesM, DecesY, DecesPlace,
+            Cle
+        FROM TODO
+        WHERE Etat = 0;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET theEnd = TRUE;
 
-	set theEnd = false;
-	OPEN cursorTodo;
-	b1: LOOP
-		FETCH cursorTodo INTO tId,
-		 tNom, tPrenom, tSexe,
-		 tNaissanceD, tNaissanceM, tNaissanceY, tNaissancePlace,
-		 tDecesD, tDecesM, tDecesY, tDecesPlace, tCle;
+    -- Process all TODO entries first to find potential matches
+    SET theEnd = false;
+    OPEN cursorTodo;
+    b1: LOOP
+        FETCH cursorTodo INTO tId,
+            tNom, tPrenom, tSexe,
+            tNaissanceD, tNaissanceM, tNaissanceY, tNaissancePlace,
+            tDecesD, tDecesM, tDecesY, tDecesPlace, tCle;
 
-		IF theEnd THEN
-			LEAVE b1;
-		END IF;
+        IF theEnd THEN
+            LEAVE b1;
+        END IF;
 
-		call insee.processOne(
-			tNom, tPrenom, tSexe,
-			tNaissanceY, tNaissanceM, tNaissanceD, tNaissancePlace,
-			tDecesY, tDecesM, tDecesD, tDecesPlace, tCle,
-			myEtat, myNbMatch, myScore, bestId, myRecord, myMsg );
+        CALL insee.processOne(
+            tNom, tPrenom, tSexe,
+            tNaissanceY, tNaissanceM, tNaissanceD, tNaissancePlace,
+            tDecesY, tDecesM, tDecesD, tDecesPlace, tCle,
+            myEtat, myNbMatch, myScore, bestId, myRecord, myMsg);
 
-		/* Store result */
-		update TODO set Etat = myEtat, NbMatch = myNbMatch, Score = myScore, IdInsee = bestId, Msg = concat( myRecord, myMsg ) where Id = tId;
+        -- Store result
+        UPDATE TODO 
+        SET Etat = myEtat, 
+            NbMatch = myNbMatch, 
+            Score = myScore, 
+            IdInsee = bestId, 
+            Msg = CONCAT(myRecord, myMsg) 
+        WHERE Id = tId;
+    END LOOP;
+    CLOSE cursorTodo;
 
-	END LOOP;
-	CLOSE cursorTodo;
+    -- Now handle blacklist filtering if we have a blacklist table for this database
+    -- We determine this by checking if the table name was passed as a parameter
+    -- Note: This requires adding a new parameter to the procedure
+    IF @database_name IS NOT NULL THEN
+        SET @blacklist_table = CONCAT('blacklist_', @database_name);
+        
+        -- Check if the blacklist table exists
+        IF EXISTS (
+            SELECT 1 
+            FROM information_schema.tables 
+            WHERE table_name = @blacklist_table
+        ) THEN
+            -- Count how many entries will be excluded
+            SET @sql = CONCAT('
+                SELECT COUNT(*) INTO @excluded_count
+                FROM TODO t 
+                INNER JOIN `', @blacklist_table, '` b
+                    ON b.IdInsee = t.IdInsee
+                    AND b.TodoKey = CONCAT(t.Nom, "|", t.Prenom, "|", t.Sexe, "|",
+                                         t.NaissanceY, t.NaissanceM, t.NaissanceD, "|", 
+                                         t.NaissancePlace, "|",
+                                         t.DecesY, t.DecesM, t.DecesD, "|", 
+                                         t.DecesPlace)
+            ');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+
+            -- If we found entries to exclude, remove them
+            IF @excluded_count > 0 THEN
+                SET @sql = CONCAT('
+                    DELETE t FROM TODO t 
+                    INNER JOIN `', @blacklist_table, '` b
+                        ON b.IdInsee = t.IdInsee
+                        AND b.TodoKey = CONCAT(t.Nom, "|", t.Prenom, "|", t.Sexe, "|",
+                                             t.NaissanceY, t.NaissanceM, t.NaissanceD, "|", 
+                                             t.NaissancePlace, "|",
+                                             t.DecesY, t.DecesM, t.DecesD, "|", 
+                                             t.DecesPlace)
+                ');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+
+                -- Report the number of excluded entries
+                IF @excluded_count > 0 THEN
+                    SELECT CONCAT(@excluded_count, ' entries found in the table blacklist-', @database_name, ' were excluded');
+                END IF;
+            END IF;
+        END IF;
+    END IF;
 END//
 delimiter ;
