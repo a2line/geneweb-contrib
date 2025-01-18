@@ -49,10 +49,14 @@ load data
  ignore
  into table COG_departement
  character set utf8
- fields terminated by ',' optionally enclosed by '"'
+ fields terminated by ','
+ enclosed by '"'
+ lines terminated by '\r\n'  -- attention, sources INSEE format DOS
  ignore 1 rows
- (Code, @dummy, @dummy, @dummy, @dummy, @dummy, Libelle)
- set Id = null
+ (@dep, @reg, @chef, @tncc, @ncc, @nccenr, @libelle)
+ set Id = null,
+     Code = @dep,
+     Libelle = REGEXP_REPLACE(@libelle, '[\r\n"]', '')
 ;
 
 create table COG_commune (

@@ -268,10 +268,12 @@ BEGIN
 		 Id,
 		 Nom, Prenom, Sexe,
 		 NaissanceD, NaissanceM, NaissanceY,
-		 getPlaceLib( NaissanceCode, NaissanceY, NaissanceM, NaissanceD ), NaissanceCode,
+		 IFNULL(getPlaceLib(NaissanceCode, NaissanceY, NaissanceM, NaissanceD), '') as NaissancePlace,
+		 NaissanceCode,
 		 NaissanceLocalite, NaissancePays,
 		 DecesD, DecesM, DecesY,
-		 getPlaceLib( DecesCode, DecesY, DecesM, DecesD ), DecesCode,
+		 IFNULL(getPlaceLib(DecesCode, DecesY, DecesM, DecesD), '') as DecesPlace,
+		 DecesCode,
 		 NumeroActe
 		from INSEE USE INDEX (idx_nom_prenom)
 		where Nom = tNom
@@ -282,10 +284,12 @@ BEGIN
 		 Id,
 		 Nom, Prenom, Sexe,
 		 NaissanceD, NaissanceM, NaissanceY,
-		 getPlaceLib( NaissanceCode, NaissanceY, NaissanceM, NaissanceD ), NaissanceCode,
+		 IFNULL(getPlaceLib(NaissanceCode, NaissanceY, NaissanceM, NaissanceD), '') as NaissancePlace,
+		 NaissanceCode,
 		 NaissanceLocalite, NaissancePays,
 		 DecesD, DecesM, DecesY,
-		 getPlaceLib( DecesCode, DecesY, DecesM, DecesD ), DecesCode,
+		 IFNULL(getPlaceLib(DecesCode, DecesY, DecesM, DecesD), '') as DecesPlace,
+		 DecesCode,
 		 NumeroActe
 		from INSEE USE INDEX (idx_naissance, idx_deces)
 		where NaissanceD like cNaisD
@@ -307,11 +311,11 @@ BEGIN
 		and NaissanceY = tNaissanceY
 		and NaissanceM = tNaissanceM
 		and NaissanceD = tNaissanceD
-		and getPlaceLib(NaissanceCode,NaissanceY,NaissanceM,NaissanceD) = tNaissancePlace
+		and IFNULL(getPlaceLib(NaissanceCode, NaissanceY, NaissanceM, NaissanceD), '') = tNaissancePlace
 		and DecesY = tDecesY
 		and DecesM = tDecesM
 		and DecesD = tDecesD
-		and getPlaceLib(DecesCode,DecesY,DecesM,DecesD) = tDecesPlace
+		and IFNULL(getPlaceLib(DecesCode, DecesY, DecesM, DecesD), '') = tDecesPlace
 	;
 
 	IF iId != 0 THEN

@@ -1,22 +1,37 @@
--- Version : Arras, Pas-de-Calais, France
+-- Version : "Commune (Département)" si homonyme, "Commune" sinon
 
-drop table if exists PlaceNorme;
+DROP TEMPORARY TABLE IF EXISTS commune_homonymes;
 
-create table PlaceNorme (
-	Id INTEGER UNSIGNED auto_increment primary key,
-	Code CHAR(5) not null,
-	DateFin CHAR(10) not null,
-	Libelle VARCHAR(500),
-	index I_Place_Code (Code)
+DROP TABLE IF EXISTS PlaceNorme;
+
+CREATE TABLE PlaceNorme (
+    Id INTEGER UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    Code CHAR(5) NOT NULL,
+    DateFin CHAR(10) NOT NULL,
+    Libelle VARCHAR(500),
+    INDEX I_Place_Code (Code)
 );
 
-insert into PlaceNorme
-select null, Code, '2050-01-01', Libelle from COG_pays;
+-- Création table temporaire ici, juste avant son utilisation
+CREATE TEMPORARY TABLE commune_homonymes AS
+SELECT Libelle 
+FROM COG_commune 
+WHERE TypeCom = 'COM'
+GROUP BY Libelle 
+HAVING COUNT(*) > 1;
+
+CREATE INDEX idx_libelle ON commune_homonymes(Libelle);
 
 insert into PlaceNorme
-select null, c.Code, '2050-01-01', concat_ws(', ', c.Libelle, d.Libelle, if(length(d.Code)=3, null, 'France') )
+select null, c.Code, '2050-01-01', 
+       case 
+         when h.Libelle is not null 
+         then concat(c.Libelle, ' (', d.Libelle, ')')
+         else c.Libelle
+       end
 from COG_commune c
 inner join COG_departement d on c.Departement = d.Code
+left join commune_homonymes h on c.Libelle = h.Libelle
 where c.TypeCom = "COM";
 
 insert into PlaceNorme
